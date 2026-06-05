@@ -1,18 +1,30 @@
-import 'dotenv/config';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { usersTable } from './db/schema';
+import express, { type Request, type Response } from 'express'
+import cors from 'cors'
+import { env } from './config/env'
+import { errorHandler } from './middleware/errorHandler'
+import router from './routes'
 
-const db = drizzle(process.env.DATABASE_URL!);
+const app = express()
 
-async function main() {
-  const user: typeof usersTable.$inferInsert = {
-    name: 'John',
-    age: 30,
-    email: 'john@example.com',
-  };
-  await db.insert(usersTable).values(user);
-  console.log('New user created!')
-  const users = await db.select().from(usersTable);
-  console.log('Getting all users from the database: ', users)
-}
-main();
+// ── Core middleware ───────────────────────────────────────────────────────────
+app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }))
+app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
+
+// ── Health check ──────────────────────────────────────────────────────────────
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({ success: true, status: 'ok', env: env.NODE_ENV })
+})
+
+// ── API routes ────────────────────────────────────────────────────────────────
+app.use('/api/v1', router)
+
+// ── 404 handler ───────────────────────────────────────────────────────────────
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({ success: false, message: 'Route not found' })
+})
+
+// ── Global error handler (must be last) ───────────────────────────────────────
+app.use(errorHandler)
+
+export default app
